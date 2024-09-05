@@ -89,7 +89,6 @@ func (s *Service) ProcessOcr(ctx context.Context, payload primitive.OcrRequest, 
 		}
 	}
 	textResult = strings.Trim(textResult, "\n")
-	fmt.Println("textResult:", textResult)
 
 	payloadDb := primitive.Ocr{
 		ImageUrl: payload.Image,
