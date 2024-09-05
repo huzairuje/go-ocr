@@ -2,16 +2,15 @@ package ocr
 
 import (
 	"fmt"
-	"io"
 	"net/http"
-	"os"
-	"strings"
-
+	
 	"go-ocr/infrastructure/httplib"
+	logger "go-ocr/infrastructure/log"
+	"go-ocr/infrastructure/validator"
 	"go-ocr/modules/primitive"
+	"go-ocr/utils"
 
 	"github.com/gin-gonic/gin"
-	"github.com/otiai10/gosseract/v2"
 )
 
 type Http struct {
@@ -29,64 +28,41 @@ type InterfaceHttp interface {
 }
 
 func (h *Http) GroupOcr(g *gin.RouterGroup) {
-	g.POST("", h.FileUpload)
+	g.POST("", h.ProcessOCR)
 }
 
-func (h *Http) FileUpload(c *gin.Context) {
+func (h *Http) ProcessOCR(ctx *gin.Context) {
+	logCtx := fmt.Sprintf("handler.ProcessOCR")
+
+	var requestBody primitive.OcrRequest
+	if err := ctx.ShouldBind(&requestBody); err != nil {
+		logger.Error(ctx, logCtx, "ctx.ShouldBind got err : %v", err)
+		httplib.SetErrorResponse(ctx, http.StatusBadRequest, primitive.SomethingWrongWithTheBodyRequest)
+		return
+	}
+
+	errValidateStruct := validator.ValidateStructResponseSliceString(requestBody)
+	if errValidateStruct != nil {
+		logger.Error(ctx, logCtx, "validator.ValidateStructResponseSliceString got err : %v", errValidateStruct)
+		httplib.SetCustomResponse(ctx, http.StatusBadRequest, http.StatusText(http.StatusBadRequest), nil, errValidateStruct)
+		return
+	}
+
 	// Get uploaded file
-	file, _, err := c.Request.FormFile("file")
+	file, _, err := ctx.Request.FormFile("file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	defer file.Close()
 
-	// Create temporary file
-	tempfile, err := os.CreateTemp("", "ocrserver"+"-")
+	response, err := h.serviceOcr.ProcessOcr(ctx, requestBody, file)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	defer func() {
-		tempfile.Close()
-		os.Remove(tempfile.Name())
-	}()
-
-	// Write uploaded file to the temporary file
-	if _, err = io.Copy(tempfile, file); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		logger.Error(ctx, utils.ErrorLogFormat, err.Error(), logCtx, "h.serviceOcr.ProcessOcr")
+		httplib.SetErrorResponse(ctx, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	client := gosseract.NewClient()
-	defer client.Close()
-
-	client.SetImage(tempfile.Name())
-	client.Languages = []string{"eng"}
-	if langs := c.PostForm("languages"); langs != "" {
-		client.Languages = strings.Split(langs, ",")
-	}
-	if whitelist := c.PostForm("whitelist"); whitelist != "" {
-		client.SetWhitelist(whitelist)
-	}
-
-	var out string
-	switch c.PostForm("format") {
-	case "hocr":
-		out, err = client.HOCRText()
-		c.Set("EscapeHTML", false)
-	default:
-		out, err = client.Text()
-	}
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	out = strings.Trim(out, "\n")
-
-	fmt.Println("out:", out)
-
-	httplib.SetSuccessResponse(c, http.StatusOK, primitive.ProcessOcrSuccess, out)
+	httplib.SetSuccessResponse(ctx, http.StatusOK, primitive.ProcessOcrSuccess, response)
 	return
 }

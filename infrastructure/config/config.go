@@ -87,15 +87,16 @@ var (
 )
 
 type Config struct {
-	Env       string         `mapstructure:"env"`
-	Port      int            `mapstructure:"port"`
-	LogLevel  string         `mapstructure:"logLevel"`
-	LogMode   bool           `mapstructure:"logMode"`
-	LogFormat string         `mapstructure:"logFormat"`
-	Postgres  PostgresConfig `mapstructure:"postgres"`
-	Redis     RedisConfig    `mapstructure:"redis"`
-	Rate      int64          `mapstructure:"rate"`
-	Interval  string         `mapstructure:"interval"`
+	Env              string           `mapstructure:"env"`
+	Port             int              `mapstructure:"port"`
+	LogLevel         string           `mapstructure:"logLevel"`
+	LogMode          bool             `mapstructure:"logMode"`
+	LogFormat        string           `mapstructure:"logFormat"`
+	Postgres         PostgresConfig   `mapstructure:"postgres"`
+	Redis            RedisConfig      `mapstructure:"redis"`
+	Rate             int64            `mapstructure:"rate"`
+	Interval         string           `mapstructure:"interval"`
+	TesseractsConfig TesseractsConfig `mapstructure:"tesseracts"`
 }
 
 // PostgresConfig ...
@@ -118,4 +119,8 @@ type RedisConfig struct {
 	DB          int    `mapstructure:"db"`
 	Port        int    `mapstructure:"port"`
 	EnableRedis bool   `mapstructure:"enableRedis"`
+}
+
+type TesseractsConfig struct {
+	Languages []string `mapstructure:"languages"`
 }

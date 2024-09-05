@@ -8,6 +8,7 @@ import (
 	"go-ocr/infrastructure/limiter"
 	logger "go-ocr/infrastructure/log"
 	"go-ocr/infrastructure/redis"
+	tesseractsClient "go-ocr/infrastructure/tesseracts-client"
 	"go-ocr/modules/health"
 	"go-ocr/modules/ocr"
 	"go-ocr/utils"
@@ -33,7 +34,7 @@ func MakeHandler() HandlerSetup {
 
 	//initiate a redis client
 	var redisClient *redisThirdPartyLib.Client
-	//var redisLibInterface redis.LibInterface
+	var redisLibInterface redis.LibInterface
 	if config.Conf.Redis.EnableRedis {
 		redisClient, err = redis.NewRedisClient(&config.Conf)
 		if err != nil {
@@ -41,11 +42,11 @@ func MakeHandler() HandlerSetup {
 			os.Exit(1)
 		}
 		//initiate a redis library interface
-		//redisLibInterface, err = redis.NewRedisLibInterface(redisClient)
-		//if err != nil {
-		//	log.Fatalf("failed initiate redis library: %v", err)
-		//	os.Exit(1)
-		//}
+		redisLibInterface, err = redis.NewRedisLibInterface(redisClient)
+		if err != nil {
+			log.Fatalf("failed initiate redis library: %v", err)
+			os.Exit(1)
+		}
 	}
 
 	//setup infrastructure postgres
@@ -62,6 +63,9 @@ func MakeHandler() HandlerSetup {
 	interval := utils.StringUnitToDuration(config.Conf.Interval)
 	middlewareWithLimiter := limiter.NewRateLimiter(int(config.Conf.Rate), interval)
 
+	//add tesseracts client library using gosseract
+	tesseractsClientLib := tesseractsClient.NewClient()
+
 	//health module
 	var healthRepository health.RepositoryInterface
 	var ocrRepository ocr.RepositoryInterface
@@ -76,7 +80,7 @@ func MakeHandler() HandlerSetup {
 	healthModule := health.NewHttp(healthService)
 
 	//ocr module
-	ocrService := ocr.NewService(ocrRepository, redisClient)
+	ocrService := ocr.NewService(ocrRepository, redisLibInterface, tesseractsClientLib)
 	ocrModule := ocr.NewHttp(ocrService)
 
 	return HandlerSetup{

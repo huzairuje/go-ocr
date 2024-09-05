@@ -1,5 +1,5 @@
 create table ocr (
-    id serial,
+    id bigserial PRIMARY KEY not null,
     image_url varchar(255) null,
     text text null,
     status varchar(255) null,
