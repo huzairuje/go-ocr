@@ -3,7 +3,7 @@ package ocr
 import (
 	"fmt"
 	"net/http"
-	
+
 	"go-ocr/infrastructure/httplib"
 	logger "go-ocr/infrastructure/log"
 	"go-ocr/infrastructure/validator"
@@ -49,14 +49,14 @@ func (h *Http) ProcessOCR(ctx *gin.Context) {
 	}
 
 	// Get uploaded file
-	file, _, err := ctx.Request.FormFile("file")
+	file, fileHeader, err := ctx.Request.FormFile("file")
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	defer file.Close()
 
-	response, err := h.serviceOcr.ProcessOcr(ctx, requestBody, file)
+	response, err := h.serviceOcr.ProcessOcr(ctx, requestBody, file, fileHeader)
 	if err != nil {
 		logger.Error(ctx, utils.ErrorLogFormat, err.Error(), logCtx, "h.serviceOcr.ProcessOcr")
 		httplib.SetErrorResponse(ctx, http.StatusInternalServerError, err.Error())

@@ -7,6 +7,7 @@ import (
 	"io"
 	"mime/multipart"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -26,7 +27,7 @@ const (
 )
 
 type ServiceInterface interface {
-	ProcessOcr(ctx context.Context, payload primitive.OcrRequest, file multipart.File) (primitive.OCrResponse, error)
+	ProcessOcr(ctx context.Context, payload primitive.OcrRequest, file multipart.File, fileHeader *multipart.FileHeader) (primitive.OCrResponse, error)
 }
 
 type Service struct {
@@ -43,25 +44,37 @@ func NewService(repository RepositoryInterface, redisInterface redisLocal.LibInt
 	}
 }
 
-func (s *Service) ProcessOcr(ctx context.Context, payload primitive.OcrRequest, file multipart.File) (primitive.OCrResponse, error) {
+func (s *Service) ProcessOcr(ctx context.Context, payload primitive.OcrRequest, file multipart.File, fileHeader *multipart.FileHeader) (primitive.OCrResponse, error) {
 	logCtx := fmt.Sprintf("service.RecordOcr")
 
-	// Create temporary file
-	tempfile, err := os.CreateTemp("", "ocrserver"+"-")
+	// Define the file path where the image will be saved
+	uploadDir := "./uploads"
+	filePath := filepath.Join(uploadDir, fileHeader.Filename)
+	payload.Image = filePath
+
+	// Ensure the directory exists
+	if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
+		logger.Error(ctx, utils.ErrorLogFormat, err.Error(), logCtx, "os.MkdirAll")
+		return primitive.OCrResponse{}, fmt.Errorf("failed to create upload directory: %w", err)
+	}
+
+	// Create a file at the specified location
+	fileCreated, err := os.Create(filePath)
 	if err != nil {
-		return primitive.OCrResponse{}, err
+		logger.Error(ctx, utils.ErrorLogFormat, err.Error(), logCtx, "os.Create")
+		return primitive.OCrResponse{}, fmt.Errorf("failed to create file: %w", err)
 	}
 	defer func() {
-		tempfile.Close()
-		os.Remove(tempfile.Name())
+		fileCreated.Close()
 	}()
 
-	// Write uploaded file to the temporary file
-	if _, err = io.Copy(tempfile, file); err != nil {
-		return primitive.OCrResponse{}, err
+	// Write the uploaded file content to the created file
+	if _, err := io.Copy(fileCreated, file); err != nil {
+		logger.Error(ctx, utils.ErrorLogFormat, err.Error(), logCtx, "io.Copy")
+		return primitive.OCrResponse{}, fmt.Errorf("failed to save uploaded file: %w", err)
 	}
 
-	err = s.tesseractsClient.SetImage(tempfile.Name())
+	err = s.tesseractsClient.SetImage(fileCreated.Name())
 	if err != nil {
 		return primitive.OCrResponse{}, err
 	}

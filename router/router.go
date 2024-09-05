@@ -80,6 +80,9 @@ func (hr *HandlerRouter) RouterWithMiddleware() *gin.Engine {
 	//set middleware to use method not allowed
 	c.NoMethod(methodNotAllowedHandler)
 
+	//serve static files
+	c.Static("/uploads", "./uploads")
+
 	//grouping on root endpoint
 	api := c.Group("/api")
 
