@@ -2,13 +2,17 @@ package utils
 
 import (
 	"errors"
+	"fmt"
+	"github.com/gin-gonic/gin"
 	"regexp"
+	"strconv"
 	"time"
 )
 
 const (
-	ErrorLogFormat = "got err: %v, context: %s - %s"
-	ShutDownEvent  = "ShutDownEvent"
+	DisablePaginationHeader = "X-Disable-Pagination"
+	ErrorLogFormat          = "got err: %v, context: %s - %s"
+	ShutDownEvent           = "ShutDownEvent"
 )
 
 func IsValidSanitizeSQL(queryParam string) bool {
@@ -63,4 +67,18 @@ func StringUnitToDuration(input string) time.Duration {
 	default:
 		return time.Second
 	}
+}
+
+func IsDisablePagination(ctx *gin.Context) bool {
+	disablePaginationHeaderVal := ctx.Request.Header.Get(DisablePaginationHeader)
+	if disablePaginationHeaderVal == "" {
+		return false
+	}
+
+	boolValue, err := strconv.ParseBool(disablePaginationHeaderVal)
+	if err != nil {
+		fmt.Println("Error on IsDisablePagination, strconv.ParseBool:", err)
+		return false
+	}
+	return boolValue
 }

@@ -28,6 +28,8 @@ const (
 
 type ServiceInterface interface {
 	ProcessOcr(ctx context.Context, payload primitive.OcrRequest, file multipart.File, fileHeader *multipart.FileHeader) (primitive.OCrResponse, error)
+	ListOcr(ctx context.Context, isDisablePagination bool, param primitive.ParameterFindOcr) (res []primitive.OCrResponse, count int64, err error)
+	GetRecordOcrById(ctx context.Context, id int64) (primitive.OCrResponse, error)
 }
 
 type Service struct {
@@ -138,6 +140,83 @@ func (s *Service) ProcessOcr(ctx context.Context, payload primitive.OcrRequest, 
 		Status:    data.Status,
 		CreatedAt: data.CreatedAt,
 		UpdatedAt: data.UpdatedAt,
+	}
+
+	return payloadResp, nil
+
+}
+
+func (s *Service) ListOcr(ctx context.Context, isDisablePagination bool, param primitive.ParameterFindOcr) (res []primitive.OCrResponse, count int64, err error) {
+	logCtx := fmt.Sprintf("service.ListPaymentAll")
+
+	emptySliceDataOcr := make([]primitive.OCrResponse, 0)
+	// Data not found in cache, query the database
+	count, err = s.repository.CountAllListOcr(ctx, param)
+	if err != nil {
+		logger.Error(ctx, utils.ErrorLogFormat, err.Error(), logCtx, "u.repository.CountAllList")
+		return
+	}
+
+	var listData []primitive.Ocr
+	if isDisablePagination {
+		listData, err = s.repository.FindAllListOcrNonPagination(ctx, param)
+		if err != nil {
+			logger.Error(ctx, utils.ErrorLogFormat, err.Error(), logCtx, "u.repository.FindListArticle")
+			return
+		}
+	} else {
+		if param.SortBy == "" {
+			param.SortBy = "id"
+		}
+		if param.SortOrder == "" {
+			param.SortOrder = "desc"
+		}
+		listData, err = s.repository.FindAllListOcrPagination(ctx, param)
+		if err != nil {
+			logger.Error(ctx, utils.ErrorLogFormat, err.Error(), logCtx, "u.repository.FindListArticle")
+			return
+		}
+	}
+
+	if count == 0 || len(listData) == 0 {
+		return emptySliceDataOcr, 0, nil
+	}
+
+	var list []primitive.OCrResponse
+	if len(listData) > 0 {
+		for _, val := range listData {
+
+			list = append(list, primitive.OCrResponse{
+				ID:        val.ID,
+				ImageUrl:  val.ImageUrl,
+				Text:      val.Text,
+				Status:    val.Status,
+				CreatedAt: val.CreatedAt,
+				UpdatedAt: val.CreatedAt,
+			})
+		}
+		res = list
+	}
+
+	return res, count, nil
+}
+
+func (s *Service) GetRecordOcrById(ctx context.Context, id int64) (primitive.OCrResponse, error) {
+	logCtx := fmt.Sprintf("service.GetRecordPaymentById")
+
+	data, err := s.repository.FindOcrByID(ctx, id)
+	if err != nil {
+		logger.Error(ctx, utils.ErrorLogFormat, err.Error(), logCtx, "u.repository.FindPaymentByIdAndByCustomerId")
+		return primitive.OCrResponse{}, err
+	}
+
+	payloadResp := primitive.OCrResponse{
+		ID:        data.ID,
+		ImageUrl:  data.ImageUrl,
+		Text:      data.Text,
+		Status:    data.Status,
+		CreatedAt: data.CreatedAt,
+		UpdatedAt: data.CreatedAt,
 	}
 
 	return payloadResp, nil
